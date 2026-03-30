@@ -4,6 +4,8 @@ import tempfile
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from transformers import pipeline
 from PIL import Image
 
@@ -137,6 +139,19 @@ async def detect_deepfake(file: UploadFile = File(...)):
         if os.path.exists(temp_video_path):
             os.remove(temp_video_path)
 
+# Mount built React static files
+try:
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
+except Exception:
+    print("Frontend folder not found - starting backend only.")
+
+# Add a catch-all to serve index.html for React Router
+@app.exception_handler(404)
+async def custom_404_handler(request, __):
+    return FileResponse("static/index.html")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
