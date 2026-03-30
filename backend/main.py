@@ -32,9 +32,6 @@ except Exception as e:
     print(f"Error loading model: {e}")
     classifier = None
 
-@app.get("/")
-def read_root():
-    return {"message": "Deepfake Detection API is running"}
 
 def analyze_frame(frame):
     if not classifier:
