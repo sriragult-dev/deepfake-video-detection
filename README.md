@@ -1,4 +1,13 @@
-# Deepfake Video Detection
+---
+title: DeepGuard AI
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
+# DeepGuard AI - Deepfake Video Detection
 
 This is a full-stack Deepfake Video Detection application using **FastAPI** (Backend) and **React** (Frontend).
 It uses a pre-trained Vision Transformer model from HuggingFace to analyze videos frame-by-frame.
