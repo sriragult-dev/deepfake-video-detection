@@ -42,8 +42,9 @@ const VideoUpload = ({ onUploadStart, onUploadSuccess, onUploadError }) => {
         const formData = new FormData();
         formData.append('file', file);
 
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         try {
-            const response = await fetch('http://localhost:8000/detect', {
+            const response = await fetch(`${API_URL}/detect`, {
                 method: 'POST',
                 body: formData,
             });
