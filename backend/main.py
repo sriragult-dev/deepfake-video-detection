@@ -26,7 +26,7 @@ try:
     # Using a generic deepfake detection model from HF or a similar image classification model
     # For this demo, we can use a known model. 
     # NOTE: 'dima806/deepfake_vs_real_image_detection' is a popular one for images.
-    classifier = pipeline("image-classification", model="dima806/deepfake_vs_real_image_detection")
+    classifier = pipeline("image-classification", model="dima806/deepfake_vs_real_image_detection", framework="pt")
     print("Model loaded successfully.")
 except Exception as e:
     print(f"Error loading model: {e}")
@@ -47,8 +47,14 @@ def analyze_frame(frame):
 
 @app.post("/detect")
 async def detect_deepfake(file: UploadFile = File(...)):
-    if not file.content_type.startswith("video/"):
-        raise HTTPException(status_code=400, detail="File must be a video.")
+    # Some devices/browsers send wrong or empty MIME type, so also check by extension
+    VALID_VIDEO_EXTENSIONS = {'.mp4', '.avi', '.mov', '.mkv', '.webm', '.ogv', '.mpeg', '.mpg', '.3gp', '.flv', '.wmv'}
+    file_ext = os.path.splitext(file.filename or "")[1].lower()
+    is_video_mime = file.content_type and file.content_type.startswith("video/")
+    is_video_ext = file_ext in VALID_VIDEO_EXTENSIONS
+
+    if not is_video_mime and not is_video_ext:
+        raise HTTPException(status_code=400, detail=f"File must be a video. Received type: '{file.content_type}', extension: '{file_ext}'")
 
     # Create a temp file to store the uploaded video
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
@@ -80,17 +86,27 @@ async def detect_deepfake(file: UploadFile = File(...)):
             if current_frame % frame_interval == 0:
                 frame_result = analyze_frame(frame)
                 if frame_result:
-                    # Example result: [{'label': 'real', 'score': 0.9}, {'label': 'fake', 'score': 0.1}]
-                    # We map this to our summary
+                    # Debug: log the raw labels from the model on the first frame
+                    if results_summary["frames_analyzed"] == 0:
+                        print(f"[DEBUG] Raw model output: {frame_result}")
+
                     fake_prob = 0
                     real_prob = 0
-                    
+
                     for res in frame_result:
-                        if res['label'].lower() == 'fake':
+                        label = res['label'].lower()
+                        # Robust matching: covers 'fake', 'FAKE', 'Fake', 'AI-Generated', etc.
+                        if 'fake' in label or 'artificial' in label or 'generated' in label or 'deepfake' in label:
                             fake_prob = res['score']
-                        elif res['label'].lower() == 'real':
+                        elif 'real' in label or 'authentic' in label or 'genuine' in label:
                             real_prob = res['score']
-                    
+
+                    # Fallback: if only two labels and neither matched, use index-based assignment
+                    if fake_prob == 0 and real_prob == 0 and len(frame_result) == 2:
+                        print(f"[WARN] Labels did not match known patterns: {[r['label'] for r in frame_result]}. Using index 0=fake, 1=real fallback.")
+                        fake_prob = frame_result[0]['score']
+                        real_prob = frame_result[1]['score']
+
                     timeline.append({
                         "timestamp": current_frame / fps if fps else 0,
                         "frame_index": current_frame,
@@ -110,6 +126,8 @@ async def detect_deepfake(file: UploadFile = File(...)):
 
         # Aggregate results
         count = results_summary["frames_analyzed"]
+        avg_fake = 0.0
+        avg_real = 0.0
         if count > 0:
             avg_fake = results_summary["fake_score"] / count
             avg_real = results_summary["real_score"] / count
@@ -120,13 +138,17 @@ async def detect_deepfake(file: UploadFile = File(...)):
             final_verdict = "UNKNOWN"
             confidence = 0
 
+        print(f"[RESULT] Verdict: {final_verdict} | Confidence: {confidence:.2f} | Frames: {count} | AvgFake: {avg_fake:.2f} | AvgReal: {avg_real:.2f}")
+
         return {
             "filename": file.filename,
             "duration": video_duration,
             "verdict": final_verdict,
-            "confidence": confidence,
+            "confidence": round(confidence, 4),
+            "frames_analyzed": count,
+            "avg_fake_score": round(avg_fake, 4),
+            "avg_real_score": round(avg_real, 4),
             "timeline": timeline,
-            # "analysis_summary": f"Analyzed {count} frames. Average Fake Score: {avg_fake:.2f}, Average Real Score: {avg_real:.2f}"
         }
 
     except Exception as e:
