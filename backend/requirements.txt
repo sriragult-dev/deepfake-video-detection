@@ -6,3 +6,9 @@ transformers
 torch
 pillow
 numpy
+fastapi
+uvicorn
+python-multipart
+opencv-python-headless
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
