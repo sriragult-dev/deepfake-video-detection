@@ -19,7 +19,10 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
+
+# Pre-download the huggingface model to save time and bandwidth during runtime
+RUN python3 -c "from transformers import pipeline; pipeline('image-classification', model='dima806/deepfake_vs_real_image_detection', framework='pt')"
 
 # Copy backend code
 COPY backend/ ./

@@ -57,8 +57,9 @@ async def detect_deepfake(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"File must be a video. Received type: '{file.content_type}', extension: '{file_ext}'")
 
     # Create a temp file to store the uploaded video
+    import shutil
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
-        temp_video.write(await file.read())
+        shutil.copyfileobj(file.file, temp_video)
         temp_video_path = temp_video.name
 
     try:
